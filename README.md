@@ -8,3 +8,4 @@ Further instructions are present in the README of the above folder.
 
 
 - 16th Mar - 2022 -> Added deep_steering inference -> `test_img_od_deep_strng_single.py` in the `Image_classification/optimized`
+  - This file have inference from video, folder and single inference functions. 
