@@ -77,7 +77,7 @@ if __name__ == "__main__":
             #logger.debug("Starting inference")
             start = time.time()
             batch_size1 = 1
-            out = mi.inference_seg(engine_path,  im3, batch_size1)
+            out = mi.inference(engine_path,  im3, batch_size1)
             y_pred = np.reshape(out, (1,-1, 18))
             print(y_pred.shape)
             y_pred_decoded = decode_detections(y_pred,
