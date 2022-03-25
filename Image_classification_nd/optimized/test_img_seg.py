@@ -3,13 +3,13 @@ import engine_ops as eop
 #import preprosses as pre
 from os.path import isfile, join
 import os
-from tensorflow.keras.applications.resnet50 import preprocess_input, decode_predictions
+#from tensorflow.keras.applications.resnet50 import preprocess_input, decode_predictions
 import time
 #import logging
 import numpy as np
 #from ssd_encoder_decoder.ssd_output_decoder import decode_detections
 import cv2 as cv
-from PIL import Image
+#from PIL import Image
 
 
 
@@ -53,8 +53,9 @@ if __name__ == "__main__":
         # data_set = data_set.reshape(data_set.shape[1],data_set.shape[2], data_set.shape[3], data_set.shape[4])
         # data_set = data_set.reshape(data_set.shape[1],300, 480, data_set.shape[4])
 
-        engine_path = './models/plan/seg_model_unet_40_ep_op13.plan'
-        
+        #engine_path = './models/plan/seg_model_unet_40_ep_op13.plan'
+        engine_path = './seg_model_unet_40_ep_op13_v803.plan'
+
         font = cv.FONT_HERSHEY_SIMPLEX
         # time when we finish processing for this frame
         new_frame_time = time.time()
@@ -82,13 +83,16 @@ if __name__ == "__main__":
 
             ret, frame = cap.read()
             resized = cv.resize(frame, (480, 320))
-            im3 = np.expand_dims(resized, axis=0)
-            #print('IM3 shape', im3.shape)
-            #data_set = data_set.reshape(1, 300, 480, 3)
-            #logger.debug("Starting inference")
+            #im3 = np.expand_dims(resized, axis=0)
+
+            pre_pro = (2.0 / 255.0) * resized.transpose((2, 0, 1)) - 1.0  # Converting HWC -> CHW
+
+            # Ref 1 -> https://elinux.org/Jetson/L4T/TRT_Customized_Example#OpenCV_with_PLAN_model
+            # Ref 2 -> https://github.com/NVIDIA/object-detection-tensorrt-example/blob/master/SSD_Model/utils/inference.py
+
             start = time.time()
             batch_size1 = 1
-            out = mi.inference(engine_path,  im3, batch_size1)
+            out = mi.inference_seg(engine_path,  pre_pro, batch_size1)
             end = time.time()
 
             output_image = out.reshape((320, 480, -1))
