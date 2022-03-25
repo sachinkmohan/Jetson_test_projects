@@ -3,7 +3,7 @@ import engine_ops as eop
 import preprosses as pre
 from os.path import isfile, join
 import os
-from tensorflow.keras.applications.resnet50 import preprocess_input, decode_predictions
+#from tensorflow.keras.applications.resnet50 import preprocess_input, decode_predictions
 import time
 import logging
 import numpy as np
@@ -61,7 +61,7 @@ if __name__ == "__main__":
         # data_set = data_set.reshape(data_set.shape[1],data_set.shape[2], data_set.shape[3], data_set.shape[4])
         # data_set = data_set.reshape(data_set.shape[1],300, 480, data_set.shape[4])
 
-        engine_path = './models/plan/ssd7_30_ep_op13.plan'
+        engine_path = './models/plan/ssd7_30_ep_op13_v803.plan'
 
 
         while cap.isOpened():
@@ -70,12 +70,14 @@ if __name__ == "__main__":
             ret, frame = cap.read()
             resized = cv.resize(frame, (480, 300))
             im3 = np.expand_dims(resized, axis=0)
+            
+
             #print('IM3 shape', im3.shape)
             #data_set = data_set.reshape(1, 300, 480, 3)
             #logger.debug("Starting inference")
             start = time.time()
             batch_size1 = 1
-            out = mi.inference(engine_path,  im3, batch_size1)
+            out = mi.inference_seg(engine_path,  im3, batch_size1)
             y_pred = np.reshape(out, (1,-1, 18))
             print(y_pred.shape)
             y_pred_decoded = decode_detections(y_pred,
