@@ -11,7 +11,10 @@ import numpy as np
 import cv2 as cv
 #from PIL import Image
 
-
+import tensorrt as trt
+import engine_ops as eng
+import inference as inf
+import pycuda.driver as cuda
 
 if __name__ == "__main__":
 
@@ -76,7 +79,20 @@ if __name__ == "__main__":
         fps = str(fps)
     
         # putting the FPS count on the frame
-        
+
+        def initialize(engine_path, data_set, batch_size):
+            engine = eng.load_engine(engine_path)
+            h_input, d_input, h_output, d_output, stream = inf.allocate_buffers(engine, batch_size, trt.float32)
+            return engine, h_input, d_input, h_output, d_output, stream
+
+        batch_size=1
+        engine = eng.load_engine(engine_path)
+        h_input = cuda.pagelocked_empty(batch_size * trt.volume(engine.get_binding_shape(0)), dtype=trt.nptype(trt.float32))
+        h_output = cuda.pagelocked_empty(batch_size * trt.volume(engine.get_binding_shape(1)), dtype=trt.nptype(trt.float32))
+        d_input = cuda.mem_alloc(h_input.nbytes)
+        d_output = cuda.mem_alloc(h_input.nbytes)
+        stream = cuda.Stream()
+        bindings = []
 
         while cap.isOpened():
             #engine_path = join(os.getcwd(), "/models/plan/ssd7_keras_1.plan")
@@ -92,10 +108,19 @@ if __name__ == "__main__":
 
             start = time.time()
             batch_size1 = 1
-            out = mi.inference_seg(engine_path,  pre_pro, batch_size1)
+            #out = mi.inference_seg(engine_path,  pre_pro, batch_size1)
+            np.copyto(h_input, pre_pro.ravel())
+            context = engine.create_execution_context()
+
+            cuda.memcpy_htod_async(d_input, h_input, stream)
+            context.execute_async(bindings=[int(d_input), int(d_output)], stream_handle=stream.handle)
+            cuda.memcpy_dtoh_async(h_output, d_output, stream)
+            stream.synchronize()
+            output = h_output.reshape(np.concatenate(([1], engine.get_binding_shape(1))))
+
             end = time.time()
 
-            output_image = out.reshape((320, 480, -1))
+            output_image = output.reshape((320, 480, -1))
             #pred = 255*np.argmax(output_image, -1)
             #pred = np.uint8(pred)
             pred_image = 255*output_image.squeeze()
