@@ -1,23 +1,32 @@
 import model_inference as mi
 import engine_ops as eop
-#import preprosses as pre
+import preprosses as pre
 from os.path import isfile, join
 import os
 #from tensorflow.keras.applications.resnet50 import preprocess_input, decode_predictions
 import time
-#import logging
+import logging
 import numpy as np
-#from ssd_encoder_decoder.ssd_output_decoder import decode_detections
+from ssd_encoder_decoder.ssd_output_decoder import decode_detections
 import cv2 as cv
-#from PIL import Image
 
 import tensorrt as trt
 import engine_ops as eng
 import inference as inf
 import pycuda.driver as cuda
 
-import tensorflow as tf
-import segmentation_models as sm
+classes = ['background', 'car', 'truck', 'pedestrian', 'bicyclist',
+           'light']  # Just so we can print class names onto the image instead of IDs
+font = cv.FONT_HERSHEY_SIMPLEX
+
+# fontScale
+fontScale = 0.5
+
+# Blue color in BGR
+color = (255, 255, 0)
+
+# Line thickness of 2 px
+thickness = 1
 
 if __name__ == "__main__":
 
@@ -35,16 +44,11 @@ if __name__ == "__main__":
     #Test messages
     ##save engine
     '''
-    
-    BACKBONE = 'efficientnetb3' 
-    preprocess_input = sm.get_preprocessing(BACKBONE) # added for preprocessing 
     try:
         # engine_path = join(os.getcwd(),"optimized/models/plan")
-        #img1 = cv.imread('../data/data1/berlin_001.png')
+        #img1 = cv.imread('../data/data1/two.jpg')
         cap = cv.VideoCapture('drive.mp4')
 
-        prev_frame_time = 0
-        new_frame_time = 0
         '''
         engine_path = join(os.getcwd(), "Image_classification_nd/optimized/models/plan")
         if (len(os.listdir(engine_path)) == 0 or os.listdir(engine_path) != 'ssd7_keras_1.plan'):
@@ -62,16 +66,7 @@ if __name__ == "__main__":
         # data_set = data_set.reshape(data_set.shape[1],data_set.shape[2], data_set.shape[3], data_set.shape[4])
         # data_set = data_set.reshape(data_set.shape[1],300, 480, data_set.shape[4])
 
-        #engine_path = './models/plan/seg_model_unet_40_ep_op13.plan'
-        engine_path = './seg_model_unet_40_ep_op13_v803.plan'
-
-        font = cv.FONT_HERSHEY_SIMPLEX
-        # time when we finish processing for this frame
-
-        def initialize(engine_path, data_set, batch_size):
-            engine = eng.load_engine(engine_path)
-            h_input, d_input, h_output, d_output, stream = inf.allocate_buffers(engine, batch_size, trt.float32)
-            return engine, h_input, d_input, h_output, d_output, stream
+        engine_path = './models/plan/ssd7_30_ep_op13_v803.plan'
 
         batch_size=1
         engine = eng.load_engine(engine_path)
@@ -82,26 +77,22 @@ if __name__ == "__main__":
         stream = cuda.Stream()
         bindings = []
 
+
         while cap.isOpened():
             #engine_path = join(os.getcwd(), "/models/plan/ssd7_keras_1.plan")
 
-            new_frame_time = time.time()
-
-
-            # putting the FPS count on the frame
             ret, frame = cap.read()
-            resized = cv.resize(frame, (480, 320))
-            #im3 = np.expand_dims(resized, axis=0)
-            img_inf = preprocess_input(resized)
-            #pre_pro = (2.0 / 255.0) * resized.transpose((2, 0, 1)) - 1.0  # Converting HWC -> CHW
+            resized = cv.resize(frame, (480, 300))
+            im3 = np.expand_dims(resized, axis=0)
+            
 
-            # Ref 1 -> https://elinux.org/Jetson/L4T/TRT_Customized_Example#OpenCV_with_PLAN_model
-            # Ref 2 -> https://github.com/NVIDIA/object-detection-tensorrt-example/blob/master/SSD_Model/utils/inference.py
-
+            #print('IM3 shape', im3.shape)
+            #data_set = data_set.reshape(1, 300, 480, 3)
+            #logger.debug("Starting inference")
             start = time.time()
             batch_size1 = 1
-            #out = mi.inference_seg(engine_path,  pre_pro, batch_size1)
-            np.copyto(h_input, np.asarray(img_inf).ravel())
+
+            np.copyto(h_input, np.asarray(im3).ravel())
             context = engine.create_execution_context()
 
             cuda.memcpy_htod_async(d_input, h_input, stream)
@@ -110,40 +101,36 @@ if __name__ == "__main__":
             stream.synchronize()
             output = h_output.reshape(np.concatenate(([1], engine.get_binding_shape(1))))
 
+            #out = mi.inference(engine_path,  im3, batch_size1) # commented to implement faster network
+            y_pred = np.reshape(output, (1,-1, 18))
+            print(y_pred.shape)
+            y_pred_decoded = decode_detections(y_pred,
+                                               confidence_thresh=0.5,
+                                               iou_threshold=0.45,
+                                               top_k=200,
+                                               normalize_coords=True,
+                                               img_height=300,
+                                               img_width=480)
             end = time.time()
 
-            output_image = output.reshape((320, 480, -1))
-            #pred = 255*np.argmax(output_image, -1)
-            #pred = np.uint8(pred)
-            pred_image = 255*output_image.squeeze()
-            u8 = pred_image.astype(np.uint8)
-            im_color = cv.applyColorMap(u8, cv.COLORMAP_AUTUMN)
-
-            # Calculating the fps
-
-            # fps will be number of frame processed in given time frame
-            # since their will be most of time error of 0.001 second
-            # we will be subtracting it to get more accurate result
-            fps = 1 / (new_frame_time - prev_frame_time)
-            prev_frame_time = new_frame_time
-
-            # converting the fps into integer
-            fps = int(fps)
-
-            # converting the fps to string so that we can display it on frame
-            # by using putText function
-            fps = str(fps)
-
-
-            cv.putText(resized, fps, (7, 70), font, 3, (100, 255, 0), 3, cv.LINE_AA)
-            cv.imshow('input_image', resized)
-            cv.imshow('output_image', im_color)
-
-
+            for box in y_pred_decoded[0]:
+                xmin = box[-4]
+                ymin = box[-3]
+                xmax = box[-2]
+                ymax = box[-1]
+                #print(xmin,ymin,xmax,ymax)
+                label = '{}: {:.2f}'.format(classes[int(box[0])], box[1])
+                cv.rectangle(resized, (int(xmin),int(ymin)),(int(xmax),int(ymax)), color=(0,255,0), thickness=2 )
+                cv.putText(resized, label, (int(xmin), int(ymin)), font, fontScale, color, thickness)
+            cv.imshow('im', resized)
             if cv.waitKey(1) & 0xFF == ord('q'):
                 break
-            print('Inference time swiftnet ', str(np.round((end - start), 2)))
 
+            #Wait until q is pressed to exit from the video
+            #logger.debug("Total time taken for inference for " + str(data_set.shape[0]) + "images is " + str(
+            #    np.round((end - start), 2)) + " seconds")
+            print('Inference time is ', str(np.round((end - start), 2)))
+            print('done')
             # print('Keras Predicted:', decode_predictions(out, top=15)[0])
             # logger.info("Keras Predicted: " + str(decode_predictions(out, top=15)[0]))
     except BaseException as err:
