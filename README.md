@@ -11,6 +11,6 @@ Further instructions are present in the README of the above folder.
 
 17th Apr- 2022
 Image Segmentation repo 2
-	- Added repo_divamgupta_isk folder, used for applying TensorRT on the Image segmentation repo of divamgupta. Highly forked and starred repo.
-	- Added divamgupta-isk-inference.py file doing the inference
-		-Onnx file is available to download [here](https://github.com/sachinkmohan/image-segmentation-keras) 
+	- Added repo_divamgupta_isk folder, used for applying TensorRT on the Image segmentation repo of divamgupta. Highly forked and starred repo. <br>
+	- Added `divamgupta-isk-inference.py` file doing the inference <br>
+		-Onnx file is available to download [here](https://github.com/sachinkmohan/image-segmentation-keras) <br>
