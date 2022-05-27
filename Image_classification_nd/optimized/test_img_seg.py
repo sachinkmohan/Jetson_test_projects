@@ -63,22 +63,22 @@ if __name__ == "__main__":
         # data_set = data_set.reshape(data_set.shape[1],300, 480, data_set.shape[4])
 
         #engine_path = './models/plan/seg_model_unet_40_ep_op13.plan'
-        engine_path = './seg_model_unet_40_ep_op13_v803.plan'
+        engine_path = './qubvel/seg_model_unet_40_ep_op13_8016.plan'
 
         font = cv.FONT_HERSHEY_SIMPLEX
         # time when we finish processing for this frame
-
+        '''
         def initialize(engine_path, data_set, batch_size):
             engine = eng.load_engine(engine_path)
             h_input, d_input, h_output, d_output, stream = inf.allocate_buffers(engine, batch_size, trt.float32)
             return engine, h_input, d_input, h_output, d_output, stream
-
+        '''
         batch_size=1
         engine = eng.load_engine(engine_path)
         h_input = cuda.pagelocked_empty(batch_size * trt.volume(engine.get_binding_shape(0)), dtype=trt.nptype(trt.float32))
         h_output = cuda.pagelocked_empty(batch_size * trt.volume(engine.get_binding_shape(1)), dtype=trt.nptype(trt.float32))
         d_input = cuda.mem_alloc(h_input.nbytes)
-        d_output = cuda.mem_alloc(h_input.nbytes)
+        d_output = cuda.mem_alloc(h_output.nbytes)
         stream = cuda.Stream()
         bindings = []
 
@@ -110,6 +110,8 @@ if __name__ == "__main__":
             stream.synchronize()
             output = h_output.reshape(np.concatenate(([1], engine.get_binding_shape(1))))
 
+            fps = 1 / (new_frame_time - prev_frame_time)
+            prev_frame_time = new_frame_time
             end = time.time()
 
             output_image = output.reshape((320, 480, -1))
@@ -124,8 +126,6 @@ if __name__ == "__main__":
             # fps will be number of frame processed in given time frame
             # since their will be most of time error of 0.001 second
             # we will be subtracting it to get more accurate result
-            fps = 1 / (new_frame_time - prev_frame_time)
-            prev_frame_time = new_frame_time
 
             # converting the fps into integer
             fps = int(fps)
